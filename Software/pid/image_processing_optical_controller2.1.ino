@@ -124,11 +124,13 @@ bool imuOK = false;
 Adafruit_BNO055 bno = Adafruit_BNO055(55, BNO_ADDRESS_0x28, &Wire);
 //imu::Vector<3> euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
 
+//float ref;
 
 //----PID CONST ----
-volatile float kp = 70.0;
-volatile float kd = 0.1;
-volatile float ki = 15.0;
+volatile float kp = 120.0;
+volatile float kd = 10.0;
+//0.1;
+volatile float ki = 20.0;
 
 //---Yaw Degree ----
 //volatile float yawDeg;
@@ -138,6 +140,9 @@ volatile float initialYaw;
 volatile float error = 0;
 volatile float cumError = 0;
 volatile float prevError = 0;
+volatile float prevError2 = 0;
+volatile float prevPID = 0;
+
 
 // ---------- ESP-NOW command / PID packets ----------
 typedef struct command_struct {
@@ -219,6 +224,7 @@ inline void stopMotors() {
   ledcWriteChannel(pwmChannel2, 0);
   ledcWriteChannel(pwmChannel3, 0);
   ledcWriteChannel(pwmChannel4, 0);
+  //delay(28);
 }
 
 void setup() {
@@ -227,19 +233,21 @@ void setup() {
   Serial.begin(115200);
   delay(50);
 
-  Serial.println("Orientation Sensor Test"); Serial.println("");
+  // Serial.println("Orientation Sensor Test"); Serial.println("");
   
-  /* Initialise the sensor */
-  if(!bno.begin())
-  {
-    /* There was a problem detecting the BNO055 ... check your connections */
-    Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
-    while(1);
-  }
+  // /* Initialise the sensor */
+  // if(!bno.begin())
+  // {
+  //   /* There was a problem detecting the BNO055 ... check your connections */
+  //   Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+  //   while(1);
+  // }
   
-  delay(1000);
+  // delay(1000);
     
-  bno.setExtCrystalUse(true);
+  // bno.setExtCrystalUse(true);
+
+  //initialYaw = readYawDegrees();
 
   while(!Serial); // When the serial monitor is turned on, the program starts to execute
 
@@ -307,34 +315,251 @@ void setup() {
   //stopMotors();
 
   struct Direction dir;
+  gpio_set_direction(GPIO_NUM_4, GPIO_MODE_OUTPUT);
+
 
   // IMU
   //imuOK = initIMU();
   // dir.current = 'C';
   // dir.previous = 'C'; 
   // dir.next = '?'; 
-
+  //ref = calcRefAngle();
 
 }
 
 //make one central turning function
+// inline void turn2(float ref){
+//   //printf("Yaw angle to see if it is updating: %.2f\n\n", yawDeg);
+//   // float leftDiff = angDiff(ref, yawDeg);
+//   // float rightDiff = angDiff(yawDeg, ref);
+//   // //float leftDiff = (yawDeg/360) * 
+//   // printf("LeftDiff: %.2f\n", leftDiff);
+//   // printf("RightDiff: %.2f\n", rightDiff);
+//   float yawDeg = readYawDegrees();
+//   float newTarget = yawDeg+ref;
+
+//   // float absol = abs(leftDiff);
+//   //float diff = angDiff(ref, yawDeg);
+//   //float diff = angDiff(newTarget, yawDeg);
+
+//   //turn right
+//   if(ref<0){
+//     Serial.println("Turning right\n");
+//     float dt = (micros() - prevTimeForward) / 1000000.0;  //convert this to second
+//     prevTimeForward = micros();
+//     float targetAngle = ref;
+//     // float targetAngle = initialYaw + 90;
+//     //diff = angDiff(targetAngle, yawDeg);
+//     //printf("Diff: %.2f\n", diff);
+//     //error = getErr(ref, yawDeg);
+//     error = abs(ref);
+//     //error = diff;
+//     printf("Error: %.2f\n", error);
+//     // float P = kp * error;
+//     //     cumError = cumError + error * dt;
+//         //cumError = constrain(cumError, -50, 300);  //This is the error for the Intergral term
+//         // float I = ki * cumError;
+//         // float D = kd * (error - prevError) / dt;
+//         // float PID = P + I + D;
+//         printf("error-prevError right: %.2f\n", error-prevError);
+//         prevError2=prevError;
+//         prevError = error;
+
+//         float PID2 = prevPID + ((kp+(ki*dt)+(kd/dt))*error) + ((-1*kp - 2*(kd/dt))*prevError) + ((kd/dt)*prevError2);
+//         prevPID = PID2;
+
+//         float motorSpeed = constrain(PID2, 700, 1023);
+//         //float motorSpeed = map(abs(PID), 0, 300, 700, 1023);
+
+//         //float motorSpeed = map(error, 0, 179, 700, 1023);
+//         // printf("P: %.2f\n", P);
+//         // printf("I: %.2f\n", I);
+//         // printf("D: %.2f\n", D);
+
+//         printf("MotorSpeed: %.2f", motorSpeed);
+//         //motorSpeed1 = constrain(throttle1 - PID, lowerbound1, upperbound1);
+//         //motorSpeed2 = constrain(throttle2 + PID, lowerbound2, upperbound2);
+//         // analogWrite(D0,motorSpeed);
+//         // analogWrite(D1,0);
+//         // analogWrite(D2,0);
+//         // analogWrite(D3,motorSpeed);
+        
+//         //take reference angle and add it to current yaw angle- that is the new angle we need to get to 
+
+
+//         ledcWriteChannel(pwmChannel1, 0); // Right forward
+//         ledcWriteChannel(pwmChannel2, 0);
+//         ledcWriteChannel(pwmChannel3, motorSpeed);   //left      // Left backward
+//         ledcWriteChannel(pwmChannel4, 0);
+
+//      //   chooseNext(dir.current,dir.previous);
+
+//   //ref = calcRefAngle();
+//  // Serial.println("Ref: ");
+//    //     Serial.print(ref);
+//         //delay(500);
+//   }
+//   //turn left
+//   if(ref > 0){
+//     //printf("Yaw angle to see if it is updating: %.2f\n\n", yawDeg);
+//     //diff = angDiff(ref, yawDeg);
+//     Serial.println("Turning left\n");
+//     float dt = (micros() - prevTimeForward) / 1000000.0;  //convert this to second
+//     prevTimeForward = micros();
+//     //float targetAngle = ref;
+
+//     // float targetAngle = initialYaw + 90;
+//     //diff = angDiff(targetAngle, yawDeg);
+//     //printf("Diff: %.2f\n", diff);
+//     //error = getErr(yawDeg, ref);
+//     error = abs(ref);
+
+//     //error = diff;
+//     //printf("Error: %.2f\n", error);
+
+//     // float P = kp * error;
+//     //     cumError = cumError + error * dt;
+//     //     //cumError = constrain(cumError, -50, 300);  //This is the error for the Intergral term
+//     //     float I = ki * cumError;
+//     //     float D = kd * (error - prevError) / dt;
+//     //     float PID = P + I + D;
+//         prevError2=prevError;
+//         prevError = error;
+
+//         float PID2 = prevPID + ((kp+(ki*dt)+(kd/dt))*error) + ((-1*kp - 2*(kd/dt))*prevError) + ((kd/dt)*prevError2);
+//         prevPID = PID2;
+
+
+//         printf("error-preverror left: %.2f\n", error - prevError);
+
+//         // printf("P: %.2f\n", P);
+//         // printf("I: %.2f\n", I);
+//         // printf("D: %.2f\n", D);
+//         float motorSpeed = constrain(PID2, 700, 1023);
+//         //float motorSpeed = (map(abs(PID), 0, 300, 700, 1023));
+
+
+//         //float motorSpeed = abs(map(error, 0, 179, 900, 1023));
+
+//         //printf("MotorSpeed: %.2f", motorSpeed);
+
+//         //motorSpeed1 = constrain(throttle1 - PID, lowerbound1, upperbound1);
+//         //motorSpeed2 = constrain(throttle2 + PID, lowerbound2, upperbound2);
+//         // analogWrite(D0,0);
+//         // analogWrite(D1,motorSpeed);
+//         // analogWrite(D2,motorSpeed);
+//         // analogWrite(D3,0);
+//         ledcWriteChannel(pwmChannel1, motorSpeed); // Right forward
+//         ledcWriteChannel(pwmChannel2, 0);
+//         ledcWriteChannel(pwmChannel3, 0);         // Left backward
+//         ledcWriteChannel(pwmChannel4, 0);
+//         //delay(500);
+
+//         //chooseNext(dir.current,dir.previous);
+
+//         //ref = calcRefAngle();
+//         Serial.println("Ref: ");
+//         Serial.print(ref);
+//   }
+//   //go straight
+//   //if(error<(ref*.10) && error>0){
+//   if(dir.next == dir.current){
+//     Serial.println("Stopping motors\n");
+//     //stopMotors();
+//     //delay(500);
+//     moveForward(ref);
+//   }
+// }
+
+//turn left
+inline void left(){
+  //if(ref > 0){
+    //printf("Yaw angle to see if it is updating: %.2f\n\n", yawDeg);
+    //diff = angDiff(ref, yawDeg);
+    Serial.println("Turning left 15 deg\n");
+    float dt = (micros() - prevTimeForward) / 1000000.0;  //convert this to second
+    prevTimeForward = micros();
+    float targetAngle = readYawDegrees();
+    // if(readYawDegrees()+ref > 90){
+    //   stopMotors();
+    //   error
+    // }
+    // float targetAngle = initialYaw + 90;
+    //diff = angDiff(targetAngle, yawDeg);
+    //printf("Diff: %.2f\n", diff);
+    //error = getErr(yawDeg, ref);
+    error = 15;
+    // if(readYawDegrees()+ref > 90){
+    //   stopMotors();
+    //   //error = readYawDegrees() + 45;
+    // }
+    //error = diff;
+    //printf("Error: %.2f\n", error);
+
+    float P = kp * error;
+        cumError = cumError + error * dt;
+        //cumError = constrain(cumError, -50, 300);  //This is the error for the Intergral term
+        float I = ki * cumError;
+        float D = kd * (error - prevError) / dt;
+        float PID = P + I + D;
+        prevError = error;
+        printf("error-preverror left: %.2f\n", error - prevError);
+
+        // printf("P: %.2f\n", P);
+        // printf("I: %.2f\n", I);
+        // printf("D: %.2f\n", D);
+        float motorSpeed = constrain(PID, 800, 1023);
+        //float motorSpeed = (map(abs(PID), 0, 300, 700, 1023));
+
+
+        //float motorSpeed = abs(map(error, 0, 179, 900, 1023));
+
+        //printf("MotorSpeed: %.2f", motorSpeed);
+
+        //motorSpeed1 = constrain(throttle1 - PID, lowerbound1, upperbound1);
+        //motorSpeed2 = constrain(throttle2 + PID, lowerbound2, upperbound2);
+        // analogWrite(D0,0);
+        analogWrite(D0,255);
+        delay(1000);
+        // analogWrite(D2,motorSpeed);
+        // analogWrite(D3,0);
+        // ledcWriteChannel(pwmChannel1, 1023); // Right forward
+        // ledcWriteChannel(pwmChannel2, 0);
+        // ledcWriteChannel(pwmChannel3, 0);         // Left backward
+        // ledcWriteChannel(pwmChannel4, 0);
+        // ledcWriteChannel(pwmChannel1, motorSpeed); // Right forward
+        // ledcWriteChannel(pwmChannel2, 0);
+        // ledcWriteChannel(pwmChannel3, 0);         // Left backward
+        // ledcWriteChannel(pwmChannel4, motorSpeed);
+        //delay(500);
+        //delay(28);
+        //chooseNext(dir.current,dir.previous);
+
+        //ref = calcRefAngle();
+        //Serial.println("Ref: ");
+        //Serial.print(ref);
+  }
+
+
+//make one central turning function
 inline void turn(float ref){
+  //gpio_set_level(GPIO_NUM_4, 1);
   //printf("Yaw angle to see if it is updating: %.2f\n\n", yawDeg);
   // float leftDiff = angDiff(ref, yawDeg);
   // float rightDiff = angDiff(yawDeg, ref);
   // //float leftDiff = (yawDeg/360) * 
   // printf("LeftDiff: %.2f\n", leftDiff);
   // printf("RightDiff: %.2f\n", rightDiff);
-  float yawDeg = readYawDegrees();
-  float newTarget = yawDeg+ref;
+  //float yawDeg = readYawDegrees();
+  //float newTarget = yawDeg+ref;
 
   // float absol = abs(leftDiff);
   //float diff = angDiff(ref, yawDeg);
-  float diff = angDiff(newTarget, yawDeg);
+  //float diff = angDiff(newTarget, yawDeg);
 
   //turn right
   if(ref<0){
-    Serial.println("Turning right\n");
+    //Serial.println("Turning right\n");
     float dt = (micros() - prevTimeForward) / 1000000.0;  //convert this to second
     prevTimeForward = micros();
     float targetAngle = ref;
@@ -342,7 +567,11 @@ inline void turn(float ref){
     //diff = angDiff(targetAngle, yawDeg);
     //printf("Diff: %.2f\n", diff);
     //error = getErr(ref, yawDeg);
-    error= ref;
+    error = abs(ref);
+    // if(readYawDegrees()+ref < 90){
+    //   stopMotors();
+    //   //error = readYawDegrees() + 45;
+    // }
     //error = diff;
     //printf("Error: %.2f\n", error);
     float P = kp * error;
@@ -351,12 +580,17 @@ inline void turn(float ref){
         float I = ki * cumError;
         float D = kd * (error - prevError) / dt;
         float PID = P + I + D;
-        float motorSpeed = map(error, 0, 6.14, 700, 1023);
-        printf("P: %.2f\n", P);
-        printf("I: %.2f\n", I);
-        printf("D: %.2f\n", D);
+        //printf("error-prevError right: %.2f\n", error-prevError);
+        prevError = error;
+        float motorSpeed = constrain(PID, 800, 1023);
+        //float motorSpeed = map(abs(PID), 0, 300, 700, 1023);
 
-        //printf("MotorSpeed: %.2f", motorSpeed);
+        //float motorSpeed = map(error, 0, 179, 700, 1023);
+        // printf("P: %.2f\n", P);
+        // printf("I: %.2f\n", I);
+        // printf("D: %.2f\n", D);
+
+        // printf("MotorSpeed: %.2f", motorSpeed);
         //motorSpeed1 = constrain(throttle1 - PID, lowerbound1, upperbound1);
         //motorSpeed2 = constrain(throttle2 + PID, lowerbound2, upperbound2);
         // analogWrite(D0,motorSpeed);
@@ -366,27 +600,46 @@ inline void turn(float ref){
         
         //take reference angle and add it to current yaw angle- that is the new angle we need to get to 
 
-
+        //this is for the version with the original wheels
         ledcWriteChannel(pwmChannel1, 0); // Right forward
-        ledcWriteChannel(pwmChannel2, motorSpeed);
-        ledcWriteChannel(pwmChannel3, motorSpeed);         // Left backward
+        ledcWriteChannel(pwmChannel2, 0);
+        ledcWriteChannel(pwmChannel3, motorSpeed);   //left      // Left backward
         ledcWriteChannel(pwmChannel4, 0);
+
+        //this is for the version with the newer wheels
+        // ledcWriteChannel(pwmChannel1, 0); // Right forward
+        // ledcWriteChannel(pwmChannel2, motorSpeed);
+        // ledcWriteChannel(pwmChannel3, motorSpeed);         // Left backward
+        // ledcWriteChannel(pwmChannel4, 0);
+        //delay(28);
+     //   chooseNext(dir.current,dir.previous);
+
+  //ref = calcRefAngle();
+  Serial.println("Ref: ");
+        Serial.print(ref);
         //delay(500);
   }
   //turn left
   if(ref > 0){
     //printf("Yaw angle to see if it is updating: %.2f\n\n", yawDeg);
     //diff = angDiff(ref, yawDeg);
-    Serial.println("Turning left\n");
+    //Serial.println("Turning left\n");
     float dt = (micros() - prevTimeForward) / 1000000.0;  //convert this to second
     prevTimeForward = micros();
     float targetAngle = ref;
+    // if(readYawDegrees()+ref > 90){
+    //   stopMotors();
+    //   error
+    // }
     // float targetAngle = initialYaw + 90;
     //diff = angDiff(targetAngle, yawDeg);
     //printf("Diff: %.2f\n", diff);
     //error = getErr(yawDeg, ref);
-    error = ref;
-
+    error = abs(ref);
+    // if(readYawDegrees()+ref > 90){
+    //   stopMotors();
+    //   //error = readYawDegrees() + 45;
+    // }
     //error = diff;
     //printf("Error: %.2f\n", error);
 
@@ -396,12 +649,17 @@ inline void turn(float ref){
         float I = ki * cumError;
         float D = kd * (error - prevError) / dt;
         float PID = P + I + D;
+        prevError = error;
+        //printf("error-preverror left: %.2f\n", error - prevError);
 
         // printf("P: %.2f\n", P);
         // printf("I: %.2f\n", I);
         // printf("D: %.2f\n", D);
+        float motorSpeed = constrain(PID, 800, 1023);
+        //float motorSpeed = (map(abs(PID), 0, 300, 700, 1023));
 
-        float motorSpeed = map(error, -6.14, 0, 900, 1023);
+
+        //float motorSpeed = abs(map(error, 0, 179, 900, 1023));
 
         //printf("MotorSpeed: %.2f", motorSpeed);
 
@@ -411,16 +669,30 @@ inline void turn(float ref){
         // analogWrite(D1,motorSpeed);
         // analogWrite(D2,motorSpeed);
         // analogWrite(D3,0);
+
+        //this is for the version with the original wheels
         ledcWriteChannel(pwmChannel1, motorSpeed); // Right forward
         ledcWriteChannel(pwmChannel2, 0);
         ledcWriteChannel(pwmChannel3, 0);         // Left backward
-        ledcWriteChannel(pwmChannel4, motorSpeed);
+        ledcWriteChannel(pwmChannel4, 0);
+
+        //this is for the newer version of the wheels
+        // ledcWriteChannel(pwmChannel1, motorSpeed); // Right forward
+        // ledcWriteChannel(pwmChannel2, 0);
+        // ledcWriteChannel(pwmChannel3, 0);         // Left backward
+        // ledcWriteChannel(pwmChannel4, motorSpeed);
         //delay(500);
+        //delay(28);
+        //chooseNext(dir.current,dir.previous);
+
+        //ref = calcRefAngle();
+        Serial.println("Ref: ");
+        Serial.print(ref);
   }
   //go straight
   //if(error<(ref*.10) && error>0){
   if(dir.next == dir.current){
-    Serial.println("Stopping motors\n");
+    //Serial.println("Stopping motors\n");
     //stopMotors();
     //delay(500);
     moveForward(ref);
@@ -477,10 +749,13 @@ void loop(){
 
   //turn(ref); //ref = 30
 
-  // setting up a pointer to the frame buffer
+  //setting up a pointer to the frame buffer
+  //gpio_set_level(GPIO_NUM_4, 0);
   camera_fb_t * fb = NULL;
-  // Take Picture with camera and put in buffer
+  // // Take Picture with camera and put in buffer
+  //gpio_set_level(GPIO_NUM_4, 0);
   fb = cameraCapture(fb);
+  //gpio_set_level(GPIO_NUM_4, 0);
 
   if (!fb) {
     Serial.println("Camera capture failed");
@@ -488,8 +763,12 @@ void loop(){
   }
 
 
-  //fb = esp_camera_fb_get(); 
+  // //fb = esp_camera_fb_get(); 
+  //delay(28);
+  //gpio_set_level(GPIO_NUM_4, 0);
   img_processing_dir(fb);
+  //gpio_set_level(GPIO_NUM_4, 0);
+  //delay(28);
   //Serial.println("Code gets here");
  
   //turn(ref);
@@ -509,7 +788,10 @@ void loop(){
     return;
   }*/
 
-
+  // ledcWriteChannel(pwmChannel1, 0); // Right forward
+  // ledcWriteChannel(pwmChannel2, 0);
+  // ledcWriteChannel(pwmChannel3, 1023);         // Left backward
+  // ledcWriteChannel(pwmChannel4, 0);
   
 
   //gpio_set_level(GPIO_NUM_4, 0);
@@ -519,7 +801,7 @@ void loop(){
   //delay(3000);
   //backwards();
   //left();
-  turn(calcRefAngle());
+  //turn(ref);
 //     sensors_event_t event;
 //     bno.getEvent(&event);
 // // // //   //Serial.print(event.orientation.x-180);
@@ -531,7 +813,19 @@ void loop(){
 //    Serial.println(yawDeg);
 // //  //printf("Yaw: %0.2f\n", yawDeg);
 
-//   turn(calcRefAngle());
+  // analogWrite(D0, 255);
+  // analogWrite(D1, 0);
+  // analogWrite(D2, 255);
+  // analogWrite(D3, 0);
+  //printf("Yaw:", readYawDegrees());
+  // gpio_set_level(GPIO_NUM_4, 0);
+  // calcRefAngle();
+  // gpio_set_level(GPIO_NUM_4, 0);
+
+  //turn2(calcRefAngle());
+  //gpio_set_level(GPIO_NUM_4, 0);
+  turn(calcRefAngle());
+  //gpio_set_level(GPIO_NUM_4, 0);
 //   delay(100);
 //turnRight();
 //moveForward();
@@ -550,7 +844,7 @@ void loop(){
 // }
 
 camera_fb_t * cameraCapture(camera_fb_t * fb){
-  
+  gpio_set_level(GPIO_NUM_4, 1);
   
   fb = esp_camera_fb_get();
   return fb;
@@ -563,6 +857,7 @@ camera_fb_t * cameraCapture(camera_fb_t * fb){
 // it is important to understand that the Direction struct will ONLY contain correct values in here, outside of this function 
 // the values could be outdated bc of call by value//call by reference nonsense C partakes in :-[
 void img_processing_dir(camera_fb_t * fb) {
+  //gpio_set_level(GPIO_NUM_4, 1);
   int sec_1_sum = 0;
   int sec_2_sum = 0;
   int sec_3_sum = 0;
@@ -649,9 +944,8 @@ void img_processing_dir(camera_fb_t * fb) {
 
 // the following uses the current and previous values in the Direction struct to determine the next value. The logic can be described in the following: 
 void chooseNext( int current, int previous){
-
   
-   
+  
     //moving right
     if(previous < current && current+1 <= 5){
         dir.next = current +1;
@@ -676,6 +970,17 @@ void chooseNext( int current, int previous){
       
     }
 
+    //left
+    if(current == 0 && previous > current){
+      stopMotors();
+      //delay(28);
+      //left();
+    }
+
+    if(current==5 && previous<current)
+    {
+      stopMotors();
+    }
     //Serial.println(dir.next);
     
 
@@ -750,10 +1055,11 @@ inline float readYawDegrees() {
   sensors_event_t event;
   bno.getEvent(&event);
   float deg = event.orientation.x;
+  //- initialYaw;
   //yawDeg = deg;
   return deg;
   //sensors_event_t event;
-    bno.getEvent(&event);
+    //bno.getEvent(&event);
 // // //   //Serial.print(event.orientation.x-180);
     // float deg = event.orientation.x;
     // yawDeg = deg;
@@ -868,7 +1174,7 @@ void pilot(){
 
 // uses the section the object of interest is in a real to image length measurements to calculate a reference angle 
 float calcRefAngle(){
-
+  //gpio_set_level(GPIO_NUM_4, 1);
   // establish section length in image plane (derrived from pixel meaurement) and focal length. Both in centimeters
   float len_arr[] = {-1.02,-0.68,-0.34,0.34,0.68,1.02};
   float focal_length = 13; //in cm
@@ -910,32 +1216,53 @@ inline void moveForward(float ref) {
     float targetAngle = ref;
     // float targetAngle = initialYaw + 90;
     float diff = angDiff(yawDeg, yawDeg);
+    //printf("cumError forward: %.2f\n", cumError);
+
 
     //error = diff;
     //printf("Error: %.2f\n", error);
 
-    float P = newKp * error;
-        cumError = cumError + error * dt;
-        //cumError = constrain(cumError, -50, 50);  //This is the error for the Intergral term
-        float I = newKi * cumError;
-        float D = newKd * (error - prevError) / dt;
-        float PID = P + I + D;
+    // float P = newKp * error;
+    //     cumError = cumError + error * dt;
+    //     //cumError = constrain(cumError, -50, 50);  //This is the error for the Intergral term
+    //     float I = newKi * cumError;
+    //     float D = newKd * (error - prevError) / dt;
+    //     float PID = P + I + D;
+        prevError2=prevError;
+        prevError = error;
+        
+        float PID2 = prevPID + ((kp+(ki*dt)+(kd/dt))*error) + ((-1*kp - 2*(kd/dt))*prevError) + ((kd/dt)*prevError2);
+        prevPID = PID2;
+
+        printf("error-preverror left: %.2f\n", error - prevError);
+
 
         // printf("P: %.2f\n", P);
         // printf("I: %.2f\n", I);
         // printf("D: %.2f\n", D);
+        float motorSpeed = constrain(PID2, 900, 1023);
 
-        float motorSpeed = map(error, 0, 179, 900, 1023);
+        //float motorSpeed = map(error, 0, 179, 900, 1023);
         //motorSpeed1 = constrain(throttle1 - PID, lowerbound1, upperbound1);
         //motorSpeed2 = constrain(throttle2 + PID, lowerbound2, upperbound2);
         // analogWrite(D0,0);
         // analogWrite(D1, motorSpeed);
         // analogWrite(D2, motorSpeed);
         // analogWrite(D3,0);
-        ledcWriteChannel(pwmChannel1, motorSpeed);  //right motor (battery connector indiates the head of robot)
+        // ledcWriteChannel(pwmChannel1, motorSpeed);  //right motor (battery connector indiates the head of robot)
+        // ledcWriteChannel(pwmChannel2, 0);
+        // ledcWriteChannel(pwmChannel3, motorSpeed);  //left motor
+        // ledcWriteChannel(pwmChannel4, 0);
+        ledcWriteChannel(pwmChannel1, 600);  //right motor (battery connector indiates the head of robot)
         ledcWriteChannel(pwmChannel2, 0);
-        ledcWriteChannel(pwmChannel3, motorSpeed);  //left motor
+        ledcWriteChannel(pwmChannel3, 600);  //left motor
         ledcWriteChannel(pwmChannel4, 0);
+        //chooseNext(dir.current,dir.previous);
+        //delay(28);
+
+        //ref = calcRefAngle();
+        Serial.println("Ref: ");
+        Serial.print(ref);
         //delay(3000);
 }
 
